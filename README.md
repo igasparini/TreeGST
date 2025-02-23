@@ -21,10 +21,6 @@ This repository is based on the [PointGST](https://github.com/jerryfeng2003/Poin
 2. Chen et al., "PointGPT: Auto-regressively Generative Pre-training from Point Clouds", arXiv:2305.11487, May 2023
 3. Puliti et al., "Benchmarking tree species classification from proximally-sensed laser scanning data: introducing the FOR-species20K dataset", arXiv:2408.06507, 2024
 
-## License
-
-[License information will be added]
-
 ## Contact
 
 Ivo Gasparini - Bern University of Applied Sciences
