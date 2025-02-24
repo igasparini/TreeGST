@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Virtual environments
+venv/
+env/
+.env/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+
+# Model checkpoints and logs
+*.pth
+logs/
+runs/
+
+# Data
+data/
+*.h5
+*.las
+*.laz
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Various
+treegst.ipynb
