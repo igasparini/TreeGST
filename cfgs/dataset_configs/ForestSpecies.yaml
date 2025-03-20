@@ -1,5 +1,5 @@
 NAME: ForestSpecies
-DATA_PATH: C:\Users\gii2\Downloads\FOR-species20K
+DATA_PATH: C:\Users\gii2\Downloads\FOR-species20K_sample
 N_POINTS: 8192
 NUM_CATEGORY: 33
 USE_NORMALS: FALSE

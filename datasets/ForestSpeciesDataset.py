@@ -6,6 +6,7 @@ import pandas as pd
 import laspy
 import os
 from pathlib import Path
+from tqdm import tqdm
 
 def pc_normalize(pc):
     """Normalize point cloud to unit sphere centered at origin"""
@@ -58,34 +59,14 @@ class ForestSpecies(Dataset):
         else:
             base_folder = 'test'
 
-        self.file_paths = []
-        self.labels = []
+        self.processed_dir = os.path.join(self.root, f'processed_{self.npoints}pts')
+        self.save_path = os.path.join(
+            self.processed_dir, 
+            f'forest_species_{self.subset}_{self.npoints}pts.npz'
+        )
 
-        for _, row in self.metadata.iterrows():
-            meta_filename = row['filename'].lstrip('/')
-            meta_filename = meta_filename.replace('.las', '.laz')
-            filename = os.path.basename(meta_filename)
-            laz_path = os.path.join(self.root, base_folder, filename)
-            
-            if os.path.exists(laz_path):
-                self.file_paths.append(laz_path)
-                self.labels.append(self.species_to_idx[row['species']])
-            else:
-                print(f"Warning: File not found - {laz_path}")
-                las_path = laz_path.replace('.laz', '.las')
-                if os.path.exists(las_path):
-                    self.file_paths.append(las_path)
-                    self.labels.append(self.species_to_idx[row['species']])
-                    print(f"Found .las file instead: {las_path}")
-        
-        if len(self.file_paths) == 0:
-            existing_files = os.listdir(os.path.join(self.root, base_folder))
-            raise RuntimeError(
-                f"No valid files found in {os.path.join(self.root, base_folder)}\n"
-                f"Existing files: {existing_files[:5]}\n"
-            )
-        
-        print(f'Successfully loaded {len(self.file_paths)} samples from {base_folder}')
+        self.file_paths, self.labels = self._collect_files(base_folder)
+        self._process_or_load_data()
 
     def load_laz_file(self, file_path):
         try:
@@ -103,19 +84,75 @@ class ForestSpecies(Dataset):
             
         except Exception as e:
             raise RuntimeError(f"Error loading file {file_path}: {str(e)}")
-
+        
     def get_species_name(self, idx):
         return self.idx_to_species[idx]
 
-    def __getitem__(self, idx):          
-        points = self.load_laz_file(self.file_paths[idx])
-        label = self.labels[idx]
-        points = torch.from_numpy(points).float()
+    def _collect_files(self, base_folder):
+        file_paths = []
+        labels = []
+        
+        for _, row in self.metadata.iterrows():
+            meta_filename = row['filename'].lstrip('/')
+            meta_filename = meta_filename.replace('.las', '.laz')
+            filename = os.path.basename(meta_filename)
+            laz_path = os.path.join(self.root, base_folder, filename)
+            
+            if os.path.exists(laz_path):
+                file_paths.append(laz_path)
+                labels.append(self.species_to_idx[row['species']])
+            else:
+                las_path = laz_path.replace('.laz', '.las')
+                if os.path.exists(las_path):
+                    file_paths.append(las_path)
+                    labels.append(self.species_to_idx[row['species']])
+        
+        if not file_paths:
+            existing_files = os.listdir(os.path.join(self.root, base_folder))
+            raise RuntimeError(f"No valid files found in {os.path.join(self.root, base_folder)}")
+        
+        return file_paths, labels
+
+    def _process_or_load_data(self):
+        if os.path.exists(self.save_path):
+            print(f'Loading preprocessed data from {self.save_path}')
+            loaded = np.load(self.save_path)
+            self.processed_points = loaded['points']
+            self.processed_labels = loaded['labels']
+        else:
+            print(f'Starting preprocessing of point cloud data...')
+            os.makedirs(self.processed_dir, exist_ok=True)
+            
+            num_files = len(self.file_paths)
+            self.processed_points = np.zeros((num_files, self.npoints, 3), dtype=np.float32)
+            self.processed_labels = np.array(self.labels, dtype=np.int64)
+            
+            with tqdm(total=num_files, desc='Processing point clouds', 
+                    unit='files', ncols=80) as pbar:
+                for idx in range(num_files):
+                    points = self.load_laz_file(self.file_paths[idx])
+                    self.processed_points[idx] = points
+                    
+                    current_file = os.path.basename(self.file_paths[idx])
+                    pbar.set_postfix({'file': current_file}, refresh=True)
+                    pbar.update(1)
+            
+            print(f'\nSaving processed data to {self.save_path}')
+            np.savez(
+                self.save_path,
+                points=self.processed_points,
+                labels=self.processed_labels
+            )
+            print('Preprocessing complete!')
+
+    def __getitem__(self, idx):
+        points = torch.from_numpy(self.processed_points[idx]).float()
+        label = self.processed_labels[idx]
         return points, label
 
     def __len__(self):
-        return len(self.file_paths)
-
+        return len(self.processed_points)
+    
     @property
     def class_names(self):
         return [self.idx_to_species[i] for i in range(self.num_classes)]
